@@ -136,6 +136,7 @@ class send_user_digests extends \core\task\adhoc_task {
 
     /**
      * Send out messages.
+     * @throws \moodle_exception
      */
     public function execute() {
         $starttime = time();
@@ -244,6 +245,7 @@ class send_user_digests extends \core\task\adhoc_task {
             }
         }
 
+        $errorcount = 0;
         if ($this->sentcount) {
             // This digest has at least one post and should therefore be sent.
             if ($this->send_mail()) {
@@ -253,6 +255,7 @@ class send_user_digests extends \core\task\adhoc_task {
                 }
             } else {
                 $this->log_finish("Issue sending digest. Skipping.");
+                $errorcount++;
             }
         } else {
             $this->log_finish("No messages found to send.");
@@ -260,6 +263,9 @@ class send_user_digests extends \core\task\adhoc_task {
 
         // We have finishied all digest emails, update $CFG->digestmailtimelast.
         set_config('digestmailtimelast', $starttime);
+        if ($errorcount > 0) {
+            throw new \moodle_exception('Error sending messages.');
+        }
     }
 
     /**
