@@ -95,6 +95,7 @@ class send_user_notifications extends \core\task\adhoc_task {
 
     /**
      * Send out messages.
+     * @throws \moodle_exception
      */
     public function execute() {
         global $CFG;
@@ -174,6 +175,9 @@ class send_user_notifications extends \core\task\adhoc_task {
                 forum_tp_mark_posts_read($this->recipient, array_keys($markposts));
                 $this->log_finish("Marked {$count} posts as read");
             }
+        }
+        if ($errorcount > 0) {
+            throw new \moodle_exception('Error sending messages.');
         }
     }
 
