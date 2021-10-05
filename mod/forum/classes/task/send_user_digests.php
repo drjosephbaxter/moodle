@@ -245,6 +245,8 @@ class send_user_digests extends \core\task\adhoc_task {
             }
         }
 
+        $forumdigestsdisabled = get_config('message', 'mod_forum_digests_disable');
+
         if ($this->sentcount) {
             // This digest has at least one post and should therefore be sent.
             if ($this->send_mail()) {
@@ -254,15 +256,19 @@ class send_user_digests extends \core\task\adhoc_task {
                 }
             } else {
                 $this->log_finish("Issue sending digest. Skipping.");
-                throw new \moodle_exception("Issue sending digest. Skipping.");
+                // Only throw exception if forum digests enabled.
+                if (!$forumdigestsdisabled) {
+                    throw new \moodle_exception("Issue sending digest. Skipping.");
+                }
             }
         } else {
             $this->log_finish("No messages found to send.");
         }
 
-        // Empty the queue only if successful.
-        $this->empty_queue($this->recipient->id, $starttime);
-
+        // Empty the queue only if successful and forum digests enabled.
+        if (!$forumdigestsdisabled) {
+            $this->empty_queue($this->recipient->id, $starttime);
+        }
         // We have finishied all digest emails, update $CFG->digestmailtimelast.
         set_config('digestmailtimelast', $starttime);
     }
@@ -328,6 +334,12 @@ class send_user_digests extends \core\task\adhoc_task {
         $this->users = $DB->get_records_select('user', "id $in", $params);
 
         $this->fill_digest_cache();
+
+        // Empty the queue if forum digests disabled.
+        $forumdigestsdisabled = get_config('message', 'mod_forum_digests_disable');
+        if ($forumdigestsdisabled) {
+            $this->empty_queue($this->recipient->id, $timenow);
+        }
     }
 
     /**

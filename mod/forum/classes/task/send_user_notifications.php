@@ -109,6 +109,8 @@ class send_user_notifications extends \core\task\adhoc_task {
         $this->inboundmanager = new \core\message\inbound\address_manager();
         $this->inboundmanager->set_handler('\mod_forum\message\inbound\reply_handler');
 
+        $forumpostsdisabled = get_config('message', 'mod_forum_posts_disable');
+
         $data = $this->get_custom_data();
 
         $this->prepare_data((array) $data);
@@ -160,7 +162,11 @@ class send_user_notifications extends \core\task\adhoc_task {
                             }
                             $sentcount++;
                         } else {
-                            $this->log("Failed to send post {$post->id}", 1);
+                            $extrainfo = '';
+                            if ($forumpostsdisabled) {
+                                $extrainfo = '[Subscribed forum posts disabled]';
+                            }
+                            $this->log("Failed to send post {$post->id} {$extrainfo}", 1);
                             $failedposts[] = $post->id;
                             $errorcount++;
                         }
@@ -179,18 +185,23 @@ class send_user_notifications extends \core\task\adhoc_task {
             }
         }
 
-        if ($errorcount > 0 and $sentcount === 0) {
-            // All messages errored. So fail.
-            throw new \moodle_exception('Error sending posts.');
-        } else if ($errorcount > 0) {
-            // Requeue failed messages as a new task.
-            $task = new send_user_notifications();
-            $task->set_userid($this->recipient->id);
-            $task->set_custom_data($failedposts);
-            $task->set_component('mod_forum');
-            $task->set_next_run_time(time() + MINSECS);
-            $task->set_fail_delay(MINSECS);
-            \core\task\manager::reschedule_or_queue_adhoc_task($task);
+        // Check for errors if forum posts enabled.
+        if (!$forumpostsdisabled) {
+            if ($errorcount > 0 and $sentcount === 0) {
+                // All messages errored. So fail.
+                throw new \moodle_exception('Error sending posts.');
+            } else {
+                if ($errorcount > 0) {
+                    // Requeue failed messages as a new task.
+                    $task = new send_user_notifications();
+                    $task->set_userid($this->recipient->id);
+                    $task->set_custom_data($failedposts);
+                    $task->set_component('mod_forum');
+                    $task->set_next_run_time(time() + MINSECS);
+                    $task->set_fail_delay(MINSECS);
+                    \core\task\manager::reschedule_or_queue_adhoc_task($task);
+                }
+            }
         }
     }
 
